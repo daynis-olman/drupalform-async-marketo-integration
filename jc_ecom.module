@@ -1,0 +1,921 @@
+<?php
+
+/**
+* ToDo: Code Refactoring 
+*/
+
+  require 'aws/aws-autoloader.php';
+  use Aws\Sqs\SqsClient;
+  use Aws\Exception\AwsException;
+
+/**
+ * @file
+ * JC: Enhanced eCommerce Drupal Forms Project
+ */
+
+/**
+*
+*/
+function jc_ecom_init() {
+  drupal_add_css(drupal_get_path('module', 'jc_ecom') . '/css/book_now.css');
+}
+
+/**
+ * Implements hook_menu().
+ */
+function jc_ecom_menu() {
+  $items = array();
+
+  $items['ecom/book-now'] = array(
+    'title' => 'Book a consultation!!',
+    'description' => 'Book a consultation form',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('jc_ecom_book_now_form'),
+    'access arguments' => array('access content'),
+  );
+
+  $items['ecom/centres'] = array(
+    'title' => 'List JC centres',
+    'description' => 'Get list of centres by state/country',
+    'page callback' => 'jc_ecom_centres',
+    'access arguments' => array('access content'),
+  );
+
+  $items['ecom/googleSpreadsheet'] = array(
+    'title' => 'Upload form data to Google Spreadsheet',
+    'description' => 'Upload form data to Google Spreadsheet',
+    'page callback' => 'jc_ecom_google_spreadsheet',
+    'access arguments' => array('access content'),
+  );
+
+  $items['ecom/test'] = array(
+    'title' => 'Ecom Test',
+    'description' => 'Ecom test APi Call',
+    'page callback' => 'jc_ecom_test',
+    'access arguments' => array('access content'),
+  );
+  return $items;
+}
+
+
+/**
+* Default form (both Book Consulation and Request a call)
+*/
+function jc_ecom_book_now_form($form, &$form_state, $form_id='default') {
+
+  //Combine two forms
+  $form1 = jc_ecom_book_now_form_bc1($form);
+  $form2 = jc_ecom_book_now_form_rc1($form1);
+
+  //Add Booking Consultation as the default form
+  $form2['jc_form_id'] = array(
+    '#type' => 'hidden',
+    '#default_value' => 'jc_ecom_book_now_form_bc1',
+  );
+  return $form2;
+}
+
+/**
+* Common header for all book_now forms to attached system parameters
+*/
+function jc_ecom_book_now_form_header() {
+
+  global $base_url;
+  $country = jc_ecom_get_default_country();
+
+  drupal_add_js(array('defaultCountry' => $country), 'setting');
+  drupal_add_js(array('baseUrl' => $base_url), 'setting');
+  $imageBaseUrl = '';
+  drupal_add_js(array('imageUrl' => $imageBaseUrl.'/statics/img/drupal-form/book-now/'), 'setting');
+
+}
+
+/**
+* Common fields/classes for all book_now forms
+*/
+function jc_ecom_book_now_form_common(&$form) {
+
+  $form['#attached']['js'] = array(
+    drupal_get_path('module', 'jc_ecom'). '/js/jquery-ui.js',
+    drupal_get_path('module', 'jc_ecom') . '/js/book_now.js',
+  );
+
+
+  $form['#attributes']['class'] = 'jc-ecom-form';
+
+}
+
+
+/**
+* 1.  Book Consultation
+* ID: jc_ecom_book_now_form_bc1
+* Default Book Consultation
+*/
+function jc_ecom_book_now_form_bc1($form, &$form_state) {
+
+  jc_ecom_book_now_form_header();
+  jc_ecom_book_now_form_common($form);
+
+  $au_state_options = jc_ecom_get_au_states();
+  $au_state_options = array('' => 'Select State') + $au_state_options;
+  $country = jc_ecom_get_default_country();
+
+  //If AU add Region field
+  if ($country == 'AU') {
+    $form['bc_state_region'] = array(
+      '#title' => 'State/Region',
+      '#type' => 'select',
+      '#options' => $au_state_options,
+      '#default_value' => '',
+      '#required' => false,
+      '#attributes' => array('class' => array('bn-form-item-textfield', 'bn-centre-required'))
+    );
+  }
+
+  $form['bc_centre'] = array(
+    '#title' => 'Centre',
+    '#type' => 'select',
+    '#options' => array('' => 'Select Centre'),
+    '#required' => false,
+    '#validated' => true,
+    '#attributes' => array('class' => array('bn-form-item-textfield', 'bn-centre-required'))
+  );
+
+
+  $form['bc_date'] = array(
+    '#title' => 'Date',
+    '#type' => 'textfield',
+    '#required' => false,
+    '#attributes' => array('class' => array('bn-form-item-textfield', 'bn-date-required'), 'placeholder' => t('Select Date'))
+  );
+
+  $form['bc_time'] = array(
+    '#title' => 'Please select your preferred time',
+    '#type' => 'textfield',
+    '#required' => false,
+  );
+
+  $form['bc_first_name'] = array(
+    '#title' => 'First Name',
+    '#type' => 'textfield',
+    '#required' => false,
+    '#attributes' => array('class' => array('bn-form-item-textfield', 'bn-personal-required'), 'placeholder' => t('eg. Jane'))
+  );
+
+  $form['bc_last_name'] = array(
+    '#title' => 'Last Name',
+    '#type' => 'textfield',
+    '#required' => false,
+    '#attributes' => array('class' => array('bn-form-item-textfield', 'bn-personal-required'), 'placeholder' => t('eg. Smith'))
+  );
+
+  $form['bc_email'] = array(
+    '#title' => 'Email',
+    '#type' => 'textfield',
+    '#required' => false,
+    '#attributes' => array('class' => array('bn-form-item-textfield', 'bn-personal-required'), 'placeholder' => t('eg. janesmith@email.com'))
+  );
+
+  $form['bc_contact_number'] = array(
+    '#title' => 'Contact Number',
+    '#type' => 'textfield',
+    '#required' => false,
+    '#attributes' => array('class' => array('bn-form-item-textfield', 'bn-personal-required'), 'placeholder' => t('eg. 0400 444 444'))
+  );
+  /*
+  $options = array('' => 'eg. 12Kg');
+  for ($i=1; $i<51; $i++) {
+    $options[$i.'Kg'] = $i.' Kg';
+  }
+
+  $form['bc_weight_loss'] = array(
+    '#title' => 'How much weight would you like to lose',
+    '#type' => 'select',
+    '#options' => $options,
+    '#required' => false,
+    '#attributes' => array('class' => array('bn-form-item-textfield'))
+  );
+
+  $form['bc_other_weight_loss'] = array(
+    '#title' => 'Have you tried other weight loss/ meal convenience programs?',
+    '#type' => 'select',
+    '#options' => array('No' => 'No', 'Yes' => 'Yes'),
+    '#attributes' => array('class' => array('bn-form-item-textfield')),
+    '#required' => false,
+  );
+  */
+  //sSLastVisited
+  $form['bc_being_to_jc'] = array(
+    '#title' => 'Have you been to Jenny Craig before?',
+    '#type' => 'select',
+    '#options' => array('Y' => 'Yes', 'N' => 'No'),
+    '#attributes' => array('class' => array('bn-form-item-textfield', 'bn-personal-required')),
+    '#required' => true,
+  );
+  //interestedInJCAH
+  $form['bc_home_delivery'] = array(
+    '#type' =>'checkbox',
+    '#title'=> 'Interested in Home Delivery?',
+    '#required'=> false,
+    '#default_value' => false, // for default checked and false is not checked
+    '#attributes' => array('class' => array('bn-form-item-checkbox'))
+  );
+  //Spare14Char
+  $form['bc_subscribe'] = array(
+    '#type' =>'checkbox',
+    '#title'=> 'Yes, send me email comms',
+    '#required'=> false,
+    '#default_value' => true , // for default checked and false is not checked
+    '#attributes' => array('class' => array('bn-form-item-checkbox'))
+  );
+
+  $form['bc_submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('SUBMIT'),
+    '#attributes' => array('class' => array('bn-form-item-submit')),
+  );
+
+  $form['jc_bc_centre'] = array(
+    '#type' => 'hidden',
+    '#default_value' => '',
+  );
+
+  $form['jc_book_time'] = array(
+    '#type' => 'hidden',
+    '#default_value' => '',
+    '#attributes' => array('class' => array('bn-date-required'))
+  );
+
+  $form['jc_form_id'] = array(
+    '#type' => 'hidden',
+    '#default_value' => 'jc_ecom_book_now_form_bc1',
+  );
+
+  $form['#validate'][] = 'jc_ecom_book_now_form_validate';
+  $form['#submit'][] = 'jc_ecom_book_now_form_submit';
+
+  return $form;
+}
+
+/**
+* 1.  Request a Call
+* ID: jjc_ecom_book_now_form_rc1
+* Default Request a Call form
+*/
+function jc_ecom_book_now_form_rc1($form, &$form_state) {
+
+  jc_ecom_book_now_form_header();
+  jc_ecom_book_now_form_common($form);
+  $au_state_options = jc_ecom_get_au_states();
+  $au_state_options = array('' => 'Select State') + $au_state_options;
+  $country = jc_ecom_get_default_country();
+
+  // Request Call form items
+  $form['rc_first_name'] = array(
+    '#title' => 'First Name',
+    '#type' => 'textfield',
+    '#required' => false,
+    '#attributes' => array('class' => array('bn-form-item-textfield', 'bn-personal-required'), 'placeholder' => t('eg. Jane'))
+  );
+
+  $form['rc_last_name'] = array(
+    '#title' => 'Last Name',
+    '#type' => 'textfield',
+    '#required' => false,
+    '#attributes' => array('class' => array('bn-form-item-textfield', 'bn-personal-required'), 'placeholder' => t('eg. Smith'))
+  );
+
+  $form['rc_email'] = array(
+    '#title' => 'Email',
+    '#type' => 'textfield',
+    '#required' => false,
+    '#attributes' => array('class' => array('bn-form-item-textfield', 'bn-personal-required'), 'placeholder' => t('eg. janesmith@email.com'))
+  );
+
+  $form['rc_contact_number'] = array(
+    '#title' => 'Contact Number',
+    '#type' => 'textfield',
+    '#required' => false,
+    '#attributes' => array('class' => array('bn-form-item-textfield', 'bn-personal-required'), 'placeholder' => t('eg. 0400 444 444'))
+  );
+
+  if ($country == 'AU') {
+    $form['rc_state_region'] = array(
+      '#title' => 'State/Region',
+      '#type' => 'select',
+      '#options' => $au_state_options,
+      '#default_value' => '',
+      '#required' => false,
+      '#attributes' => array('class' => array('bn-form-item-textfield', 'centre-required'))
+    );
+  }
+
+  $form['rc_centre'] = array(
+    '#title' => 'Centre',
+    '#type' => 'select',
+    '#options' => array(),
+    '#required' => false,
+    '#validated' => true,
+    '#attributes' => array('class' => array('bn-form-item-textfield', 'centre-required'))
+  );
+/*
+  $form['rc_before'] = array(
+    '#type' =>'checkbox',
+    '#title'=> 'Yes, I have been to Jenny Craig before',
+    '#required'=> false,
+    '#default_value' =>false, // for default checked and false is not checked
+    '#attributes' => array('class' => array('bn-form-item-checkbox'))
+  );
+
+  $form['rc_home_delivery'] = array(
+    '#type' =>'checkbox',
+    '#title'=> 'Yes, I am interested in home delivery',
+    '#required'=> false,
+    '#default_value' =>false, // for default checked and false is not checked
+    '#attributes' => array('class' => array('bn-form-item-checkbox'))
+  );
+*/
+$form['rc_being_to_jc'] = array(
+  '#title' => 'Have you been to Jenny Craig before?',
+  '#type' => 'select',
+  '#options' => array('Y' => 'Yes', 'N' => 'No'),
+  '#attributes' => array('class' => array('bn-form-item-textfield', 'bn-personal-required')),
+  '#required' => true,
+);
+//interestedInJCAH
+$form['rc_home_delivery'] = array(
+  '#type' =>'checkbox',
+  '#title'=> 'Interested in Home Delivery?',
+  '#required'=> false,
+  '#default_value' => false, // for default checked and false is not checked
+  '#attributes' => array('class' => array('bn-form-item-checkbox'))
+);
+//Spare14Char
+$form['rc_subscribe'] = array(
+  '#type' =>'checkbox',
+  '#title'=> 'Yes, send me email comms',
+  '#required'=> false,
+  '#default_value' => true , // for default checked and false is not checked
+  '#attributes' => array('class' => array('bn-form-item-checkbox'))
+);
+/*
+  $form['rc_subscribe'] = array(
+    '#type' =>'checkbox',
+    '#title'=> 'Yes, I am interested iweewn receiving news, tips and exclusive offers',
+    '#required'=> false,
+    '#default_value' =>false, // for default checked and false is not checked
+    '#attributes' => array('class' => array('bn-form-item-checkbox'))
+  );
+*/
+  $form['rc_submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('SUBMIT'),
+    '#attributes' => array('class' => array('bn-form-item-submit')),
+  );
+
+  $form['jc_rc_centre'] = array(
+    '#type' => 'hidden',
+    '#default_value' => '',
+  );
+
+  $form['jc_form_id'] = array(
+    '#type' => 'hidden',
+    '#default_value' => 'jc_ecom_book_now_form_rc1',
+  );
+
+  $form['#validate'][] = 'jc_ecom_book_now_form_validate';
+  $form['#submit'][] = 'jc_ecom_book_now_form_submit';
+
+  return $form;
+}
+
+/**
+ * Implements hook_form_alter().
+ */
+function jc_ecom_form_alter(&$form, &$form_state, $form_id) {
+
+  switch($form_id) {
+    case 'jc_ecom_book_now_form' :
+      $form['#theme'] = array('jc_ecom_get_book_now');
+      break;
+    case 'jc_ecom_book_now_form_bc1' :
+      $form['#theme'] = array('jc_ecom_get_book_now_bc1');
+      break;
+    case 'jc_ecom_book_now_form_rc1' :
+      $form['#theme'] = array('jc_ecom_get_book_now_rc1');
+      break;
+  }
+
+}
+
+/**
+* Field validations for all forms
+*/
+
+function jc_ecom_book_now_form_validate(&$form, &$form_state) {
+
+  jc_ecom_book_now_form_header();
+
+  $inputs = $form_state['input'];
+
+  $form_id = $inputs['form_id'];
+  $jc_form_id = $inputs['jc_form_id']; // This is needed for the combined form
+
+  $form_id = ($form_id == 'jc_ecom_book_now_form') ? $inputs['jc_form_id'] : $form_id;
+
+  //Create the required fields array
+  $fields = array();
+
+  switch($form_id) {
+    case 'jc_ecom_book_now_form_bc1' :
+        $fields = array(
+          'bc_state_region',
+          'bc_centre',
+          'bc_date',
+          'bc_time',
+          'bc_first_name',
+          'bc_last_name',
+          'bc_email',
+          'bc_contact_number'
+        );
+      break;
+
+    case 'jc_ecom_book_now_form_rc1' :
+        $fields = array (
+          'rc_first_name',
+          'rc_last_name',
+          'rc_email',
+          'rc_contact_number',
+          'rc_state_region',
+          'rc_centre'
+        );
+      break;
+  }
+
+  $country = jc_ecom_get_default_country();
+
+  foreach($fields as $field) {
+    $value = $inputs[$field];
+    switch(true) {
+      case preg_match('/_first_name|_last_name|bc_time|_centre/', $field) && (!$value) :
+        //If need to set custom error message block
+        //$form[$field]['#prefix'] = '<div>Error Message</div>';
+        form_set_error($field, "This field is required");
+        if ($field == 'bc_time') {
+          $form[$field]['#attributes'] = array('class' => array('bc_time_error'));
+          drupal_add_css('table#table-bc-time tr {border: 2px solid #FF9494;}', 'inline');
+        }
+      break;
+
+      case preg_match('/_state_region/', $field) && ($country == 'AU') && (!$value) :
+        form_set_error($field, "This field is required");
+      break;
+
+      case preg_match('/bc_date/', $field) :
+        if (!$value) {
+          form_set_error($field, "This field is required");
+        }
+        else {
+          $date = substr(trim($value), 0, 8);
+          list($d, $m, $y) = explode('/', $date);
+          $time = strtotime($y.'-'.$m.'-'.$d);
+          list($y1,$m1,$d1) = explode('-', date('Y-m-d', time()));
+          $today = mktime(0,0,0,$m1,$d1,$y1);
+          if (!$time || $time < $today) {
+            form_set_error($field, "Invalid date");
+          }
+        }
+      break;
+
+      case preg_match('/_contact_number/', $field) :
+        if (!$value) {
+          form_set_error($field, "This field is required");
+        }
+        else {
+          $number = str_replace(' ', '', trim($value));
+          //if (!preg_match('/^(0(2|3|4|7|8))?\d{8}$/', $number)){
+          if (!preg_match('/^[0-9]{9,10}$/', $number)){
+            form_set_error($field, "Invlaid contact number");
+          }
+        }
+      break;
+
+      case preg_match('/_email/', $field) :
+        if(!$value) {
+          form_set_error($field, "This field is required");
+        }
+        else {
+          $email = trim($value);
+          if (!preg_match("/^[^@]+@[^@]+\.[a-z]{2,6}$/i",$email)) {
+            form_set_error($field, "Invlaid email address");
+          }
+        }
+      break;
+
+    }
+  }
+}
+
+
+/**
+* Submit handler for all forms
+* Individual forms have the form ID in form_id hidden field
+* Combined form has it in jc_form_id
+*/
+function jc_ecom_book_now_form_submit($form, &$form_state) {
+
+  $inputs = $form_state['input'];
+
+  $output = array();
+
+  $inputs = $form_state['input'];
+
+  $form_id = $inputs['form_id'];
+  $jc_form_id = $inputs['jc_form_id']; // This is needed for the combined form
+
+  $form_id = ($form_id == 'jc_ecom_book_now_form') ? $inputs['jc_form_id'] : $form_id;
+
+
+  $fields = array();
+
+  switch($form_id) {
+
+    case 'jc_ecom_book_now_form_bc1' :
+        $fields = array(
+          'bc_state_region',
+          'bc_centre',
+          'bc_date',
+          'bc_time',
+          'bc_first_name',
+          'bc_last_name',
+          'bc_email',
+          'bc_contact_number',
+          'bc_weight_loss',
+          'bc_other_weight_loss',
+          'bc_subscribe',
+        );
+      break;
+
+    case 'jc_ecom_book_now_form_rc1' :
+        $fields = array (
+          'rc_first_name',
+          'rc_last_name',
+          'rc_email',
+          'rc_contact_number',
+          'rc_state_region',
+          'rc_centre',
+          'rc_before',
+          'rc_home_delivery',
+          'rc_subscribe'
+        );
+      break;
+  }
+
+  foreach ($fields as $field) {
+    $value = $inputs[$field];
+    $field = substr_replace($field, 'jc_', 0, 3);
+    if (preg_match('/jc_other_weight_loss|jc_subscribe|jc_before|jc_home_delivery/', $field)) {
+      $value = ($value) ? 'Y' : 'N';
+    }
+    $output[$field] = $value;
+  }
+
+  $output['form_id'] = $form_id;
+  $output = json_encode($output, JSON_PRETTY_PRINT);
+
+  //var_dump($output); exit;
+
+  //$result = jc_ecom_process_sqs_queue_msg($output);
+  //$result->get('MessageId');
+  drupal_goto("/start-today/thank-you");
+
+}
+
+
+/**
+ * Implements hook_theme().
+ * Attached a separate template for each form
+ */
+function jc_ecom_theme($existing, $type, $theme, $path){
+
+  return array(
+
+    'jc_ecom_get_book_now' => array(
+      'render element' => 'form',
+      'template' => 'book-now-form',
+      'path' => drupal_get_path('module', 'jc_ecom') . '/templates',
+    ),
+
+    'jc_ecom_get_book_now_bc1' => array(
+      'render element' => 'form',
+      'template' => 'book-now-form-bc1',
+      'path' => drupal_get_path('module', 'jc_ecom') . '/templates',
+    ),
+
+    'jc_ecom_get_book_now_rc1' => array(
+      'render element' => 'form',
+      'template' => 'book-now-form-rc1',
+      'path' => drupal_get_path('module', 'jc_ecom') . '/templates',
+    ),
+
+  );
+}
+
+/**
+* Return list of Centres avaialble in a given State/Region
+* (For Ajax calls)
+*/
+function jc_ecom_centres($state_region='') {
+
+  $state_region = isset($_POST['state_region']) ? $_POST['state_region'] : '';
+
+  $country = jc_ecom_get_default_country();
+
+  $state_region = check_plain($state_region);
+  $state_region = ($state_region) ? strtoupper($state_region) : '';
+
+  // Create an object of type SelectQuery
+  $query = db_select('field_data_field_address', 'loc');
+
+  // Add extra detail to this query object: a condition, fields and a range
+  //$query->condition('field_address_country', '%'.$database->escapeLike($search_phrase) . '%', 'LIKE');
+  $query->condition('field_address_country', $country, '=');
+  $query->condition('field_address_administrative_area', $state_region, '=');
+  $query->fields('loc',
+    array('field_address_country',
+      'field_address_administrative_area',
+      'field_address_locality',
+      'field_address_postal_code',
+      'field_address_thoroughfare',
+      'field_address_premise')
+  );
+  $query->orderBy('field_address_locality', 'ASC');
+  $result = $query->execute();
+
+  $centres = array();
+  $centres[] = array('email' => '', 'centre' => 'Select Centre');
+
+  $centre_count = 0;
+  foreach ($result as $record) {
+    $centre = trim($record->field_address_locality);
+    if ($centre) {
+      $email = strtolower(str_replace(' ', '', $centre)).'@jennycraig.com.au';
+      $centres[] = array('email' => $email, 'centre' => $centre);
+    }
+    $centre_count++;
+  }
+
+  if ($centre_count < 1) {
+    print json_encode(array());
+  }
+  //Add : I don't live near a centre
+  $centres[] = array('email' => 'na', 'centre' => "I don't live near a centre");
+  print json_encode($centres);
+}
+
+/**
+* Read settings Globals to get the current language (country)
+*/
+function jc_ecom_get_default_country() {
+
+  $language = $GLOBALS['language']->language;
+  $country = 'AU';
+
+  if ($language == 'en-nz') {
+    $country = 'NZ';
+  }
+
+  return $country;
+}
+
+/**
+* AU states for select box options (state/regions)
+*/
+function jc_ecom_get_au_states() {
+
+  return $au_states = array(
+    'ACT' => 'ACT',
+    'NSW' => 'NSW',
+    'NT' => 'NT',
+    'QLD' => 'QLD',
+    'SA' => 'SA',
+    'TAS' => 'TAS',
+    'VIC' => 'VIC',
+    'WA' => 'WA'
+  );
+}
+
+/**
+* Connect to AWS SQS to send the message
+*/
+function jc_ecom_process_sqs_queue_msg($msg) {
+
+
+  $client = new SqsClient(
+    [
+    'region'      => 'us-east-1',
+    'credentials' => [
+        'key'    => 'XXXXXXCBJ5IVRWHYKUYQ',
+        'secret' => 'XXXXXXMCHUjvh26NpaaDPSXhO+rzHzJRvBJdNtAj',
+    ],
+    'version' => '2012-11-05',
+    'http' => [ 'verify' => false ]
+
+    ]
+  );
+
+  $queueUrl = 'https://sqs.us-east-1.amazonaws.com/978235784031/testCJC';
+
+  try {
+    $result = $client->sendMessage (
+      array(
+      'QueueUrl'    => $queueUrl,
+      'MessageBody' => $msg,
+      )
+    );
+
+    return $result;
+
+  } catch (AwsException $e) {
+    var_dump($e->getMessage());
+  }
+
+}
+
+/**
+* Test Api Call
+*/
+function jc_ecom_test() {
+  //print drupal_render(drupal_get_form('jc_ecom_book_now_form_rc1'));
+  $form_id = '2257'; //Can use any valid form ID here
+  $munchking_id = '139-RET-710';
+  $json = file_get_contents('https://app-abm.marketo.com/index.php/form/getForm?munchkinId='.$munchking_id.'&form='.$form_id);
+  $json_file = DRUPAL_ROOT.'/statics/marketo/centres.json';
+  try {
+    file_put_contents($json_file, $json);
+  }
+  catch (Exception $e) {
+    echo 'Caught exception: ',  $e->getMessage(), "\n";
+  }
+
+}
+
+
+/**
+ * Implements hook_token_info().
+ */
+function jc_ecom_token_info() {
+
+  $jc_form_tokens = array();
+
+  $jc_form_tokens['book-now-form-default'] = array(
+    'name' => t('The Jenny Craig : Book Consultation & Request A Call From'),
+    'description' => t('The Jenny Craig : Book Consultation & Request A Call From.'),
+  );
+
+  $jc_form_tokens['book-now-form-bc1'] = array(
+    'name' => t('The Jenny Craig : Book Consultation Form 1'),
+    'description' => t('The Jenny Craig : Book Consultation Form 1.'),
+  );
+
+  $jc_form_tokens['book-now-form-rc1'] = array(
+    'name' => t('The Jenny Craig : Request A Call Form 1'),
+    'description' => t('The Jenny Craig : Request A Call Form 1.'),
+  );
+
+  $jc_form_tokens['book-now-form-rc2'] = array(
+    'name' => t('The Jenny Craig : Request A Call Form 2'),
+    'description' => t('The Jenny Craig : Request A Call Form 2.'),
+  );
+
+  return array(
+    'tokens' => array('site' => $jc_form_tokens),
+  );
+}
+
+
+/**
+ * Implements hook_tokens().
+ */
+function jc_ecom_tokens($type, $tokens, array $data = array(), array $options = array()) {
+
+  $output = array();
+
+
+  if ($type == 'site') {
+    foreach ($tokens as $name => $existing) {
+      switch ($name) {
+        case 'book-now-form-default' :
+          $form_id = 'jc_ecom_book_now_form';
+          $old = $existing;
+        break;
+
+        case 'book-now-form-bc1' :
+          $form_id = 'jc_ecom_book_now_form_bc1';
+          $old = $existing;
+        break;
+
+        case 'book-now-form-rc1' :
+          $form_id = 'jc_ecom_book_now_form_rc1';
+          $old = $existing;
+        break;
+      }
+
+    }
+
+    $output[$old] = drupal_render(drupal_get_form($form_id));
+
+  }
+  return $output;
+}
+
+/**
+*
+*/
+function jc_ecom_google_spreadsheet() {
+
+  $form_data = $_POST;
+  $date_time = date("d/m/Y : H:i:s");
+  //verify something is on the way
+  if (!$form_data['Country']) {
+    print json_encode(false);
+  }
+  else {
+    $data = [
+      $date_time,
+      $form_data['Country'] = ($form_data['Country'] == 'AU') ? 'Australia' : 'New Zealand', //Country,
+      $form_data['State'], //State,
+      $form_data['chosenCentreEmail'], //Centre Email,
+      $form_data['apptDate'], //Booking Date,
+      $form_data['apptTime'], //Time,
+      $form_data['FirstName'], //Firstname,
+      $form_data['LastName'], //Lastname,
+      $form_data['Email'], //Email,
+      $form_data['MobilePhone'], //Phone/Mobile,
+      $form_data['sSLastVisited'], //Being to JC Before,
+      $form_data['interestedInJCAH'] = ($formData['interestedInJCAH'] == 1) ? 'Y' : 'N', //Home Delivery,
+      $form_data['Spare14Char'] = ($formData['Spare14Char'] == 'yes') ? 'Y' : 'N', //Subsribe to email,
+      $form_data['LeadSource'] //Lead Source
+    ];
+    require __DIR__ . '/vendor/autoload.php';
+    $secret_json =  __DIR__ . '/sheets_api_secret.json';
+  	// Set up the API
+  	$client = new Google_Client();
+    $guzzleClient = new \GuzzleHttp\Client(['verify' => false]);
+    $client->setHttpClient($guzzleClient);
+  	$client->setAuthConfigFile($secret_json); // Use your own client_secret JSON file
+  	$client->addScope(Google_Service_Sheets::SPREADSHEETS);
+  	$accessToken = 'XXXXXXf71aaf6f17332766aa491e009f2e05af3e'; // Use your generated access token
+  	$client->setAccessToken($accessToken);
+  	$sheet_service = new Google_Service_Sheets($client);
+
+  	// Set the sheet ID
+  	$fileId = 'XXXXXXUCGQOmsCUzB9EzsGXW328LBTTMP8xVj6A_VCCXM';// Copy & paste from a spreadsheet URL
+
+  	// Build the CellData array
+  	$values = array();
+  	foreach( $data AS $d ) {
+  		$cellData = new Google_Service_Sheets_CellData();
+  		$value = new Google_Service_Sheets_ExtendedValue();
+  		$value->setStringValue($d);
+  		$cellData->setUserEnteredValue($value);
+  		$values[] = $cellData;
+  	}
+  	// Build the RowData
+  	$rowData = new Google_Service_Sheets_RowData();
+  	$rowData->setValues($values);
+
+  	// Prepare the request
+  	$append_request = new Google_Service_Sheets_AppendCellsRequest();
+  	$append_request->setSheetId(0);
+  	$append_request->setRows($rowData);
+  	$append_request->setFields('userEnteredValue');
+
+  	// Set the request
+  	$request = new Google_Service_Sheets_Request();
+  	$request->setAppendCells($append_request);
+
+  	// Add the request to the requests array
+  	$requests = array();
+  	$requests[] = $request;
+
+  	// Prepare the update
+  	$batchUpdateRequest = new Google_Service_Sheets_BatchUpdateSpreadsheetRequest(array(
+  		'requests' => $requests
+  	));
+
+  	try {
+  		// Execute the request
+  		$response = $sheet_service->spreadsheets->batchUpdate($fileId, $batchUpdateRequest);
+
+  		if( $response->valid() ) {
+        print json_encode(true);
+  		}
+  	} catch (Exception $e) {
+  		// Something went wrong
+      // Look at console log under Response
+      echo 'Caught exception: ',  $e->getMessage(), "\n";
+  	}
+
+  }
+}
