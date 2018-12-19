@@ -1,0 +1,238 @@
+div#bc-form-container, div#rc-form-container {
+  display: none;
+  font-family: "Helvetica";
+}
+.row-separator {
+  height:10px;
+}
+
+.container-bn .row{
+  margin: 0px 0px 10px 0px;
+  padding: 0px 0px 0px 0px;
+}
+.container-bn .row > div {
+  margin: 0px;
+  padding: 0px;
+}
+div.bn-left-sidebar {
+  margin-right: 0px 0px 20px 0px;
+}
+/**** Navigation *******/
+div.bn-form-step {
+  text-align: center;
+  margin: 0px;
+ z-index: 9999;
+}
+div.bn-form-step img {
+  max-width: 100%;
+  height: auto;
+  position: absolute;
+  right: 40%;
+}
+div.bn-nav-items #bn-nav1 {
+  max-width:50%;
+  float: left;
+}
+div.bn-nav-items #bn-nav2 {
+  max-width: 50%;
+  float: left;
+}
+
+div.bn-form-step-title {
+  font-family: "Helvetica" !important;
+  font-size: 120%;
+  font-weight: bold;
+  line-height: 22px;
+  color: #000;
+}
+
+/**
+* Form
+*/
+
+.bn-form-item-label-right div {
+  font-size: 110%;
+  font-weight: bold;
+  float:right;
+}
+
+.bn-form-item-textfield {
+  width:100%; border: 1px solid #aaa;
+  font-size:110%;
+  padding:8px;
+  height:30px;
+  -webkit-border-radius: 0 !important;
+  -moz-border-radius: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.bn-form-item-label {
+  font-size: 110%;
+  font-weight: bold;
+  color: #425563;
+  padding: 20px 0pc 0px 0px;
+}
+span.bn-form-label-desc {
+  font-size: 100%;
+  font-weight: normal;
+}
+span.bn-form-item-required {
+  color: #ff2400;
+  font-weight: bold;
+}
+div#no-centre-image {
+  margin-top: -10px;
+  background-image: url('/statics/img/drupal-form/book-now/book-now-centre-details.png');
+  background-repeat: no-repeat;
+   background-repeat: no-repeat;
+    background-size: 100% 100%;
+    margin: 3px auto 0;
+    position: relative
+}
+
+div#no-centre-text {
+  font-size: 125%;
+  font-weight: bold;
+  padding: 10px 20px 10px 20px;
+  margin-top: 20px;
+  color: #777;
+}
+/* JCAU#907 */
+.bc-time-selected {
+  background-color: #337AB7 ;
+  font-weight: bold;
+  color: #fff;
+}
+
+.bc-inline-error {
+  color: #f11;
+  padding: 5px;
+  font-weight: bold;
+  font-size: 90%;
+}
+#edit-bc-time {
+  display: none;
+}
+table#table-bc-time {
+  border-collapse: collapse;
+  margin: 0px;
+  padding: 0px;
+  width: 100%;
+  table-layout: fixed;
+}
+
+table#table-bc-time tr td {
+  border:1px solid #999;
+  padding:15px;
+  text-align:center;
+  vertical-align: middle;
+  font-size: 110%;
+
+}
+.bn-form-item-checkbox, #edit-bc-subscribe, #edit-bc-home-delivery,  #edit-rc-subscribe, #edit-rc-before, #edit-rc-home-delivery, .form-type-checkbox label {
+  margin-left: 0px;
+  width: 20px;
+  font-weight: lighter;
+  font-size: 110%;
+}
+
+.bn-form-item-submit {
+  width:100%;
+  padding: 10px;
+  font-size: 110%;
+  font-weight: bold;
+}
+.container-bn input[type=checkbox] {
+    width: 20px;
+    height: 20px;
+}
+
+#edit-bc-date {
+  background-image: url("/statics/img/drupal-form/book-now/cal.png");
+  background-repeat: no-repeat;
+  background-position: right;
+}
+input.error, select.error {
+  border: 1px solid #fc0000 !important;
+}
+.alert-block {
+  display: none;
+}
+
+.fade-button {
+  opacity: 60%;
+}
+/**
+* Calendar
+*/
+#datepicker-custom {
+  display: none;
+}
+#datepicker-custom .ui-state-highlight {
+   /*background: orange;*/
+}
+.ui-widget,.ui-widget-content {
+  width: 100%; /*what ever width you want*/
+}
+
+.ui-state-default, .ui-widget-content .ui-state-default, .ui-widget-header .ui-state-default, .ui-state-default {
+  border: 0px;
+  background-image:none;
+  text-align:center;
+  color: #777;
+}
+
+.ui-state-hover a,.ui-state-hover a:hover,.ui-state-hover a:link, .ui-state-hover a:visited{
+  background-color: #D9E1E2;
+  text-decoration:none;
+  background-image:none;
+}
+.container-bn tr td:hover,  .container-bn tr td > a:hover {
+    background-color: #D9E1E2;
+}
+.container-bn tr td > a , .container-bn tr td > a:hover, .ui-datepicker-title{
+  font-family: 'bebas-neue' !important;
+  font-size: 130%;
+  text-align: center;
+  font-weight: normal;
+}
+.ui-state-active, .ui-widget-content .ui-state-active, .ui-widget-header .ui-state-active {
+  background-color: :#fff;
+  text-decoration:none;
+  background-image:none;
+}
+
+.ui-widget-header, .ui-datepicker th {
+  border: none;
+  background-image:none;
+}
+table.ui-datepicker-calendar {
+  max-width:100%;
+}
+table.ui-datepicker-calendar tr td{
+  padding: 10px 0px 10px 0px;
+}
+.ui-datepicker-inline {
+  text-align: center;
+  background-color: rgba(217,225,226,0.3);
+  padding: 5%;
+}
+#datepicker-custom .ui-datepicker-next .ui-icon  {
+  background-image: url('/statics/img/drupal-form/book-now/cal_next.png');
+  width: 36px;
+  height: 36px;
+}
+#datepicker-custom .ui-datepicker-prev .ui-icon  {
+  background-image: url('/statics/img/drupal-form/book-now/cal_prev.png');
+  width: 36px;
+  height: 36px;
+}
+
+
+/*
+.ui-datepicker-calendar a.ui-state-default, .ui-datepicker-calendar td { background: #fff; }
+.ui-datepicker-calendar td.ui-datepicker-today a { background: red; } // Today
+.ui-datepicker-calendar a.ui-state-hover { background: yellow; } // Hovered date
+.ui-datepicker-calendar a.ui-state-active { background: lime; } // Selected date
+*/
